@@ -1,0 +1,20 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "paths": {
+      "@/*": ["./*"],
+      "@/screens": ["./screens"],
+      "@/components": ["./components"],
+      "@/hooks": ["./hooks"],
+      "@/services": ["./services"],
+      "@/theme": ["./theme"],
+      "@/utils": ["./utils"],
+      "@/types": ["./types"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}
