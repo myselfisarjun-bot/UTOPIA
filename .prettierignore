@@ -1,0 +1,8 @@
+node_modules
+dist
+build
+.expo
+.git
+.husky
+.next
+coverage
