@@ -1,0 +1,16 @@
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Supabase local dev artifacts
+supabase/.branches/
+supabase/.temp/
+supabase/.cache/
+
+# Env
+.env
+.env.*
+
+# Logs
+*.log
