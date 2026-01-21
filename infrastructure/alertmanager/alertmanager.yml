@@ -1,0 +1,222 @@
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@yourcompany.com'
+  smtp_auth_username: ''
+  smtp_auth_password: ''
+  smtp_require_tls: true
+
+# Templates for different notification channels
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Alert routing rules
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'default'
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 0s
+      repeat_interval: 5m
+      
+    # Warning alerts - less urgent
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_interval: 30s
+      repeat_interval: 2h
+      
+    # Team-specific routing
+    - match:
+        team: backend
+      receiver: 'backend-team'
+      routes:
+        - match:
+            alertname: HighErrorRate
+          receiver: 'backend-critical'
+        - match:
+            alertname: HighResponseTime
+          receiver: 'backend-warning'
+          
+    - match:
+        team: mobile
+      receiver: 'mobile-team'
+      
+    - match:
+        team: infrastructure
+      receiver: 'infrastructure-team'
+
+# Inhibition rules - suppress alerts when higher priority alerts are firing
+inhibit_rules:
+  # If service is down, suppress all other alerts for that service
+  - source_match:
+      alertname: ServiceDown
+    target_match:
+      service: 'backend-api'
+    equal: ['service']
+    
+  # If database is down, suppress database-related alerts
+  - source_match:
+      alertname: DatabaseConnectionDown
+    target_match:
+      service: 'database'
+    equal: ['service']
+
+# Receivers - notification endpoints
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: 'devops@yourcompany.com'
+        subject: '[Monitoring] Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Labels: {{ range .Labels.SortedPairs }} - {{ .Name }}: {{ .Value }} {{ end }}
+          {{ end }}
+
+  - name: 'critical-alerts'
+    # Email notifications
+    email_configs:
+      - to: 'oncall@yourcompany.com'
+        subject: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          🚨 CRITICAL ALERT 🚨
+          
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Time: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          
+          Labels:
+          {{ range .Labels.SortedPairs }}  - {{ .Name }}: {{ .Value }} {{ end }}
+          
+          Annotations:
+          {{ range .Annotations.SortedPairs }}  - {{ .Name }}: {{ .Value }} {{ end }}
+          {{ end }}
+    
+    # Slack notifications
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#alerts-critical'
+        title: '🚨 Critical Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Time:* {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          
+          *Labels:*
+          {{ range .Labels.SortedPairs }}• {{ .Name }}: {{ .Value }}
+          {{ end }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'warning-alerts'
+    email_configs:
+      - to: 'team@yourcompany.com'
+        subject: '⚠️ Warning: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          ⚠️ WARNING ALERT
+          
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Severity: {{ .Labels.severity }}
+          Time: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          
+          Labels:
+          {{ range .Labels.SortedPairs }}  - {{ .Name }}: {{ .Value }} {{ end }}
+          {{ end }}
+
+  - name: 'backend-team'
+    email_configs:
+      - to: 'backend@yourcompany.com'
+        subject: '[Backend] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Backend Team Alert
+          
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Runbook: {{ .Annotations.runbook_url }}
+          Time: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          {{ end }}
+    
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/BACKEND/SLACK/WEBHOOK'
+        channel: '#backend-alerts'
+        title: 'Backend Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Backend Alert*
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Runbook:* {{ .Annotations.runbook_url }}
+          *Time:* {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'mobile-team'
+    email_configs:
+      - to: 'mobile@yourcompany.com'
+        subject: '[Mobile] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Mobile Team Alert
+          
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Time: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          {{ end }}
+
+  - name: 'infrastructure-team'
+    email_configs:
+      - to: 'infrastructure@yourcompany.com'
+        subject: '[Infrastructure] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Infrastructure Team Alert
+          
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Time: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          {{ end }}
+
+  - name: 'backend-critical'
+    email_configs:
+      - to: 'backend-oncall@yourcompany.com'
+        subject: '🚨 CRITICAL: Backend Alert - {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          🚨 CRITICAL BACKEND ALERT
+          
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Runbook: {{ .Annotations.runbook_url }}
+          Severity: {{ .Labels.severity }}
+          Service: {{ .Labels.service }}
+          Time: {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          
+          IMMEDIATE ACTION REQUIRED
+          {{ end }}
+
+  - name: 'backend-warning'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/BACKEND/WARNING/WEBHOOK'
+        channel: '#backend-issues'
+        title: 'Backend Warning: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Backend Warning*
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Time:* {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+          {{ end }}
